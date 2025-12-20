@@ -1,0 +1,35 @@
+build/
+
+# Node.js
+node_modules/
+!node_modules/my-old-space/
+!node_modules/my-old-space/**
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# OS generated files
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+
+# Uploaded files
+uploads/
+
+# SSL Certificates
+*.pem
