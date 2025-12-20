@@ -2,8 +2,6 @@ build/
 
 # Node.js
 node_modules/
-!node_modules/my-old-space/
-!node_modules/my-old-space/**
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
