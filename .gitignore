@@ -29,5 +29,8 @@ Thumbs.db
 # Uploaded files
 uploads/
 
+# Local SQLite database (do not commit)
+db/database.sqlite
+
 # SSL Certificates
 *.pem
