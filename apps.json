@@ -1,0 +1,9 @@
+{
+    "path": "/apps",
+    "apps": [
+        {
+            "name": "calculator1",
+            "path": "/calculator1"
+        }
+    ]
+}
