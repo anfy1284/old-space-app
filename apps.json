@@ -2,8 +2,12 @@
     "path": "/apps",
     "apps": [
         {
-            "name": "calculator1",
-            "path": "/calculator1"
+            "name": "game2048",
+            "path": "/game2048"
+        },
+        {
+            "name": "Organizations",
+            "path": "/organizations"
         }
     ]
 }

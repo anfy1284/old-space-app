@@ -1,0 +1,61 @@
+{
+    "models": [
+        {
+            "name": "Organizations",
+            "tableName": "organizations",
+            "fields": {
+                "id": {
+                    "type": "INTEGER",
+                    "primaryKey": true,
+                    "autoIncrement": true
+                },
+                "name": {
+                    "type": "STRING",
+                    "allowNull": false
+                },
+                "description": {
+                    "type": "STRING",
+                    "allowNull": true
+                },
+                "isActive": {
+                    "type": "BOOLEAN",
+                    "allowNull": false,
+                    "defaultValue": true
+                }
+            },
+            "options": {
+                "timestamps": true
+            }
+        },
+        {
+            "name": "Users",
+            "tableName": "users",
+            "fields": {
+                "organizationId": {
+                    "type": "INTEGER",
+                    "allowNull": true,
+                    "references": {
+                        "model": "organizations",
+                        "key": "id"
+                    },
+                    "onUpdate": "CASCADE",
+                    "onDelete": "CASCADE"
+                }
+            }
+        }
+    ],
+        "associations": [
+            {
+                "type": "hasMany",
+                "source": "Organizations",
+                "target": "Users",
+                "foreignKey": "organizationId"
+            },
+            {
+                "type": "belongsTo",
+                "source": "Users",
+                "target": "Organizations",
+                "foreignKey": "organizationId"
+            }
+        ]
+}

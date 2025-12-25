@@ -1,0 +1,19 @@
+{
+    "level": "app",
+    "autoStart": false,
+    "system": ["mySpace"],
+    "access": ["admin", "public", "user"],
+    "dependencies": {},
+    "mainMenuCommands": 
+        [
+            {"id": "main", "items": 
+                [
+                    { "caption": "games", "items": 
+                        [
+                            { "caption": "2048", "action": "open"}
+                        ]
+                    }
+                ]
+            }
+        ]
+}

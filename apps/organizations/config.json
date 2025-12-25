@@ -1,6 +1,6 @@
 {
     "level": "app",
-    "autoStart": true,
+    "autoStart": false,
     "system": ["mySpace"],
     "access": ["admin", "public", "user"],
     "dependencies": {},
@@ -8,9 +8,9 @@
         [
             {"id": "main", "items": 
                 [
-                    { "caption": "apps", "items": 
+                    { "caption": "directories", "items": 
                         [
-                            { "caption": "Calculator1", "action": "open"}
+                            { "caption": "organizations", "action": "open"}
                         ]
                     }
                 ]
