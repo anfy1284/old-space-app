@@ -2,7 +2,7 @@
     "level": "app",
     "autoStart": false,
     "system": ["mySpace"],
-    "access": ["admin", "public", "user"],
+    "access": ["admin", "user"],
     "dependencies": {},
     "mainMenuCommands": 
         [

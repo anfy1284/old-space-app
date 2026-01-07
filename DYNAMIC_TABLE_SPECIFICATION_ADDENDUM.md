@@ -454,3 +454,105 @@ async loadDataRange(firstRow, visibleRows) {
   this.renderVisibleRows();
 }
 ```
+
+## 11. Дополнения и Уточнения к ТЗ
+
+### 11.1. Тестовые Данные для Organizations
+
+**Количество**: 100 записей (вместо 1000+ для упрощения первоначального тестирования)
+
+**Seed скрипт**: `apps/organizations/db/seed.js`
+
+**Названия**: Ferienwohnungen (апартаменты для отдыха) в тематике Альгоя (Германия)
+
+### 11.2. Поддержка Баз Данных
+
+**Поддерживаемые СУБД**: 
+- SQLite (по умолчанию для разработки)
+- PostgreSQL (для продакшена)
+
+**Конфигурация**: Определяется в файле `dbSettings.json` в корне проекта
+
+**Реализация**: Sequelize автоматически адаптируется к типу БД на основе конфигурации. Все типы данных (INTEGER, STRING, BOOLEAN, DATE, TIMESTAMP) поддерживаются обеими СУБД.
+
+### 11.3. Структура Приложения Organizations
+
+**Существующие файлы**:
+- `apps/organizations/db/db.json` ✅ (уже существует с моделью Organizations)
+- `apps/organizations/server.js` ✅ (пустой, требует реализации)
+- `apps/organizations/config.json` ✅ (существует)
+
+**Требуется создать**:
+- `apps/organizations/db/seed.js` - скрипт заполнения тестовыми данными
+- `apps/organizations/resources/public/client.js` - клиентская часть с формой и таблицей
+- `apps/organizations/init.js` - инициализация и запуск seed
+
+### 11.4. Последовательность Реализации
+
+**Этап 1**: Глобальные серверные функции
+1. ✅ `getDynamicTableData()` в `drive_root/globalServerContext.js`
+2. ✅ `getTableMetadata()` в `drive_root/globalServerContext.js`
+3. ✅ Болванка `saveClientState()` в `drive_root/globalServerContext.js`
+
+**Этап 2**: UI классы (если отсутствуют)
+1. ✅ Проверить CheckBox в `UI_classes.js` (создать если нет)
+2. ✅ Проверить DatePicker в `UI_classes.js` (создать если нет)
+
+**Этап 3**: Серверная часть приложения
+1. ✅ Реализовать `apps/organizations/server.js` с методами:
+   - `getDynamicTableData(params, sessionID)`
+   - `subscribeToTable(params, sessionID, req, res)` (для SSE)
+2. ✅ Создать `apps/organizations/db/seed.js`
+3. ✅ Создать `apps/organizations/init.js`
+
+**Этап 4**: UI компонент DynamicTable
+1. ✅ Создать класс `DynamicTable` в `UI_classes.js`
+2. ✅ Реализовать базовую отрисовку (Win98 стиль)
+3. ✅ Реализовать виртуальный скроллинг
+4. ✅ Реализовать изменение ширины колонок
+5. ✅ Реализовать клавиатурную навигацию
+6. ✅ Реализовать выделение строк
+7. ✅ Реализовать события (onClick, onDoubleClick)
+8. ✅ Добавить индикатор загрузки
+9. ✅ Реализовать сортировку (клик по заголовкам)
+10. ✅ Опционально: фильтрацию и SSE (можно отложить)
+
+**Этап 5**: Клиентская часть приложения
+1. ✅ Создать `apps/organizations/resources/public/client.js`
+2. ✅ Создать форму (класс Form) с DynamicTable
+3. ✅ Настроить autoStart в config.json
+
+### 11.5. Упрощения для MVP
+
+**Реализуем в первой версии**:
+- ✅ Базовая загрузка и отображение данных
+- ✅ Виртуальный скроллинг
+- ✅ Клавиатурная навигация
+- ✅ Изменение ширины колонок
+- ✅ Сортировка (клик по заголовкам)
+- ✅ Win98 стиль
+
+**Откладываем на потом** (можно добавить позже):
+- ⏸ SSE (real-time обновления)
+- ⏸ UI для настройки фильтров
+- ⏸ Редактирование данных в таблице
+- ⏸ Экспорт в CSV/Excel
+- ⏸ Сохранение настроек колонок в БД
+
+### 11.6. Особенности Реализации callServerMethod
+
+**Клиентская функция**: Уже существует в фреймворке (вероятно в `client.js`)
+
+**Формат вызова**:
+```javascript
+callServerMethod('organizations', 'getDynamicTableData', {
+  tableName: 'organizations',
+  firstRow: 0,
+  visibleRows: 20
+})
+```
+
+**Маршрутизация**: 
+- POST `/app/call` с body: `{ app: 'organizations', method: 'getDynamicTableData', params: {...} }`
+- Роутинг обрабатывается в `drive_forms/server.js`
+- Вызывается функция из `apps/organizations/server.js`
