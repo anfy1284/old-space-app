@@ -29,7 +29,7 @@ try {
                 appName: 'organizations',
                 tableName: 'organizations',
                 rowHeight: 25,
-                multiSelect: true,
+                multiSelect: false,
                 initialSort: [{ field: 'name', order: 'asc' }],
                 onRowClick: function(rowData, rowIndex) {
                     console.log('[organizations] Row clicked:', rowData);
