@@ -1,0 +1,29 @@
+{
+    "level": "app",
+    "autoStart": false,
+    "system": [
+        "mySpace"
+    ],
+    "access": [
+        "admin",
+        "user"
+    ],
+    "dependencies": {},
+    "mainMenuCommands": [
+        {
+            "id": "main",
+            "items": [
+                {
+                    "caption": "Neues",
+                    "items": [
+                        {
+                            "caption": "myNewApp",
+                            "action": "open",
+                            "params": {"dbTable": "organizations"}
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -23,6 +23,57 @@ try {
             originalDraw(parent);
             
             const contentArea = this.getContentArea();
+            contentArea.style.display = 'flex';
+            contentArea.style.flexDirection = 'column';
+            
+            // Create form toolbar using Toolbar class
+            const formToolbar = new Toolbar(contentArea);
+            formToolbar.compact = false; // Normal mode: with spacing between buttons
+            formToolbar.height = 38;
+            
+            const refreshBtn = new Button();
+            refreshBtn.setCaption('Обновить');
+            refreshBtn.setWidth(100);
+            refreshBtn.setHeight(28);
+            refreshBtn.onClick = () => {
+                if (table) {
+                    table.refresh();
+                }
+            };
+            formToolbar.addItem(refreshBtn);
+            
+            const exportBtn = new Button();
+            exportBtn.setCaption('Экспорт');
+            exportBtn.setWidth(100);
+            exportBtn.setHeight(28);
+            exportBtn.onClick = () => {
+                showAlert('Экспорт будет реализован позже');
+            };
+            formToolbar.addItem(exportBtn);
+            
+            const saveBtn = new Button();
+            saveBtn.setCaption('Сохранить');
+            saveBtn.setIcon('/app/res/public/fontawesome-free-7.1.0-web/svgs/solid/floppy-disk.svg');
+            saveBtn.showIcon = true;
+            saveBtn.showText = true;
+            saveBtn.setTooltip('Сохранить все изменения формы');
+            saveBtn.setWidth(100);
+            saveBtn.setHeight(28);
+            saveBtn.onClick = async () => {
+                if (table) {
+                    await table.saveChanges();
+                }
+            };
+            formToolbar.addItem(saveBtn);
+            
+            formToolbar.Draw(contentArea);
+            
+            // Create table container
+            const tableContainer = document.createElement('div');
+            tableContainer.style.flex = '1';
+            tableContainer.style.position = 'relative';
+            tableContainer.style.overflow = 'hidden';
+            contentArea.appendChild(tableContainer);
             
             // Create dynamic table
             const table = new DynamicTable({
@@ -30,6 +81,8 @@ try {
                 tableName: 'organizations',
                 rowHeight: 25,
                 multiSelect: false,
+                editable: true,  // Enable editing
+                showToolbar: true,  // Show table toolbar with standard buttons
                 initialSort: [{ field: 'name', order: 'asc' }],
                 onRowClick: function(rowData, rowIndex) {
                     console.log('[organizations] Row clicked:', rowData);
@@ -47,8 +100,8 @@ try {
                 }
             });
             
-            // Draw table in content area
-            table.Draw(contentArea);
+            // Draw table in table container
+            table.Draw(tableContainer);
             
             // Store reference
             this.table = table;

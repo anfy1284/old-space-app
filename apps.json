@@ -8,6 +8,10 @@
         {
             "name": "organizations",
             "path": "/organizations"
+        },
+        {
+            "name": "recordEditor",
+            "path": "/recordEditor"
         }
     ]
 }

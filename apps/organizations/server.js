@@ -15,35 +15,40 @@ const dynamicTableMethods = registerDynamicTableMethods('organizations', {
                 caption: 'ID',
                 type: 'INTEGER',
                 width: 80,
-                source: 'field' // берется из поля модели
+                source: 'field', // берется из поля модели
+                editable: false  // ID не редактируется
             },
             {
                 name: 'name',
                 caption: 'Название организации',
                 type: 'STRING',
                 width: 250,
-                source: 'field'
+                source: 'field',
+                editable: true
             },
             {
                 name: 'accommodationTypeId',
                 caption: 'Тип размещения',
                 type: 'INTEGER',
                 width: 150,
-                source: 'field'
+                source: 'field',
+                editable: false  // FK пока не редактируем
             },
             {
                 name: 'description',
                 caption: 'Описание',
                 type: 'STRING',
                 width: 300,
-                source: 'field'
+                source: 'field',
+                editable: true
             },
             {
                 name: 'isActive',
                 caption: 'Активна',
                 type: 'BOOLEAN',
                 width: 100,
-                source: 'field'
+                source: 'field',
+                editable: true
             }
             // Пример вычисляемого поля:
             ,{
@@ -67,7 +72,9 @@ const dynamicTableMethods = registerDynamicTableMethods('organizations', {
 module.exports = {
     getDynamicTableData: dynamicTableMethods.getDynamicTableData,
     subscribeToTable: dynamicTableMethods.subscribeToTable,
-    saveClientState: dynamicTableMethods.saveClientState
+    saveClientState: dynamicTableMethods.saveClientState,
+    recordTableEdit: dynamicTableMethods.recordTableEdit,
+    commitTableEdits: dynamicTableMethods.commitTableEdits
 };
 
 // Дополнительные специфичные для приложения методы можно добавлять ниже
