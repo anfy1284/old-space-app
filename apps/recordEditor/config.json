@@ -1,5 +1,5 @@
 {
-    "level": "app",
+    "allowMultipleInstances": true,
     "autoStart": false,
     "system": [
         "mySpace"
