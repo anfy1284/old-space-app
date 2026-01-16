@@ -45,29 +45,87 @@ try {
                     let element = null;
                     const caption = item.caption || '';
                     const properties = item.properties || {};
+
+                    // Helper to create textbox-like controls (single and multiline)
+                        const createTextControl = (ControlCtor) => {
+                        const ctrl = new ControlCtor(contentArea, properties);
+                        let val = '';
+                        if (item.value !== null && item.value !== undefined) val = item.value;
+                        else if (item.data && this._dataMap && Object.prototype.hasOwnProperty.call(this._dataMap, item.data)) {
+                            const rec = this._dataMap[item.data];
+                            val = (rec && (rec.value !== undefined)) ? rec.value : (rec && rec !== undefined ? rec : '');
+                        }
+                        try { if (typeof ctrl.setText === 'function') ctrl.setText(String(val)); } catch (e) {}
+                        // rows support for multiline controls
+                        try { if (typeof item.rows === 'number' && typeof ctrl.setRows === 'function') ctrl.setRows(item.rows); else if (properties && properties.rows && typeof ctrl.setRows === 'function') ctrl.setRows(properties.rows); } catch (e) {}
+                        try { if (typeof ctrl.setCaption === 'function') ctrl.setCaption(caption); } catch (e) {}
+                        ctrl.Draw(contentArea);
+                        // Previously we assigned semantic name to the element so external code
+                        // could find it via `document.getElementsByName(dataKey)`:
+                        // try { if (item.data && ctrl.element) ctrl.element.name = item.data; } catch (e) {}
+                        // To avoid browser heuristics we now store the mapping on dataset
+                        try { if (item.data && ctrl.element) { ctrl.element.dataset.field = item.data; } } catch (e) {}
+                        try { if (ctrl.element) ctrl.element.style.width = '100%'; } catch (e) {}
+                        if (item.name) controlsMap[item.name] = ctrl;
+                        return ctrl;
+                    };
+
                     switch (item.type) {
                         case 'number': {
                             properties.digitsOnly = true;
                         }
                         case 'textbox': {
-                            // Create textbox as a child of contentArea so it participates in the layout
-                            const tb = new TextBox(contentArea, properties);
-                            // Determine initial value: explicit item.value, or lookup by item.data from loaded data
-                            let tbValue = '';
-                            if (item.value !== null && item.value !== undefined) tbValue = item.value;
-                            else if (item.data && this._dataMap && Object.prototype.hasOwnProperty.call(this._dataMap, item.data)) {
-                                const rec = this._dataMap[item.data];
-                                tbValue = (rec && (rec.value !== undefined)) ? rec.value : (rec && rec !== undefined ? rec : '');
+                            createTextControl(TextBox);
+                            break;
+                        }
+                        case 'emunList': {
+                            // Render a textbox with prepared list options (read-only + dropdown)
+                            const dataKey = item.data;
+                            let val = '';
+                            if (item.value !== null && item.value !== undefined) val = item.value;
+                            else if (dataKey && this._dataMap && Object.prototype.hasOwnProperty.call(this._dataMap, dataKey)) {
+                                const rec = this._dataMap[dataKey];
+                                val = (rec && (rec.value !== undefined)) ? rec.value : (rec && rec !== undefined ? rec : '');
                             }
-                            tb.setText(String(tbValue));
-                            tb.setHeight(22);
-                            tb.setCaption(caption);
-                            tb.Draw(contentArea);
-                            // If layout references a data key, set element name so external wiring can find it
-                            try { if (item.data && tb.element) tb.element.name = item.data; } catch (e) {}
-                            // Make textbox stretch to available width
-                            if (tb.element) tb.element.style.width = '100%';
-                            if (item.name) controlsMap[item.name] = tb;
+
+                            // Gather list items from server-provided record.options or inline item.options
+                            let listItems = [];
+                            try {
+                                if (dataKey && this._dataMap && this._dataMap[dataKey] && Array.isArray(this._dataMap[dataKey].options)) {
+                                    listItems = this._dataMap[dataKey].options;
+                                } else if (Array.isArray(item.options)) {
+                                    listItems = item.options;
+                                } else if (properties.listItems && Array.isArray(properties.listItems)) {
+                                    listItems = properties.listItems;
+                                }
+                            } catch (e) { listItems = []; }
+
+                            const propClone = Object.assign({}, properties, { listMode: true, listItems: listItems, readOnly: true });
+                            const ctrl = new TextBox(contentArea, propClone);
+                            try { if (typeof ctrl.setText === 'function') ctrl.setText(String(val)); } catch (e) {}
+                            try { if (typeof ctrl.setCaption === 'function') ctrl.setCaption(caption); } catch (e) {}
+                            ctrl.Draw(contentArea);
+                            // Sync changes back to this._dataMap when control value changes
+                            try {
+                                if (item.data) {
+                                    const fieldKey = item.data;
+                                    const handler = (ev) => {
+                                        try {
+                                            const newVal = (typeof ctrl.getText === 'function') ? ctrl.getText() : (ctrl.element ? ctrl.element.value : undefined);
+                                            if (!this._dataMap) this._dataMap = {};
+                                            if (!this._dataMap[fieldKey]) this._dataMap[fieldKey] = { name: fieldKey, value: newVal };
+                                            else this._dataMap[fieldKey].value = newVal;
+                                        } catch (_) {}
+                                    };
+                                    try { if (ctrl.element && ctrl.element.addEventListener) ctrl.element.addEventListener('input', handler); } catch (_) {}
+                                }
+                            } catch (_) {}
+                            try { if (item.data && ctrl.element) ctrl.element.dataset.field = item.data; } catch (e) {}
+                            if (item.name) controlsMap[item.name] = ctrl;
+                            break;
+                        }
+                        case 'textarea': {
+                            createTextControl(MultilineTextBox);
                             break;
                         }
                         case 'checkbox': {
@@ -85,7 +143,9 @@ try {
                             cb.setCaption(caption);
                             cb.Draw(contentArea);
                             // If layout references a data key, set element name so external wiring can find it
-                            try { if (item.data && cb.element) cb.element.name = item.data; } catch (e) {}
+                            // (historically we set `cb.element.name = item.data`, leaving commented for safety)
+                            // try { if (item.data && cb.element) cb.element.name = item.data; } catch (e) {}
+                            try { if (item.data && cb.element) cb.element.dataset.field = item.data; } catch (e) {}
                             if (item.name) controlsMap[item.name] = cb;
                             break;
                         }

@@ -81,7 +81,7 @@ function getData() {
         {
             name: 'Test_Record_9',
             caption: 'Поле 9 (выбор)',
-            valueType: 'SELECT',
+            valueType: 'STRING',
             editable: true,
             value: 'opt2',
             options: [
@@ -106,6 +106,21 @@ function getData() {
                 { name: 'Item 1', qty: 2, price: 9.99 },
                 { name: 'Item 2', qty: 5, price: 4.5 }
             ]
+        }
+        ,
+        {
+            name: 'Meta_Owner',
+            caption: 'Владелец',
+            valueType: 'STRING',
+            editable: true,
+            value: ' '
+        },
+        {
+            name: 'Meta_Tag',
+            caption: 'Тег',
+            valueType: 'STRING',
+            editable: true,
+            value: ''
         }
         ,
         // Test permutation fields for UI testing
@@ -205,10 +220,6 @@ function getLayout() {
             orientation: 'vertical',
             layout: [
                 {
-                    type: 'header',
-                    caption: 'Тестовая форма — сложный макет'
-                },
-                {
                     type: 'group',
                     caption: 'Двухколоночная часть',
                     orientation: 'horizontal',
@@ -229,7 +240,7 @@ function getLayout() {
                             orientation: 'vertical',
                             layout: [
                                 { type: 'number', data: 'Test_Record_2', caption: 'Числовое поле' },
-                                { type: 'select', data: 'Test_Record_9', caption: 'Выбор опции' },
+                                { type: 'emunList', data: 'Test_Record_9', caption: 'Выбор опции' },
                                 { type: 'checkbox', data: 'Test_Record_8', caption: 'Флаг включен', properties: {captionOnRight: true } }
                             ]
                         }
