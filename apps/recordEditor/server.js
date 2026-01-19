@@ -1,23 +1,32 @@
 const crypto = require('crypto');
 
-// In-memory datasets store for atomic client sessions
-// datasetId -> { payload: { layout, data }, created }
-const _datasets = {};
-
-function generateDatasetId() {
-    return crypto.randomBytes(16).toString('hex') + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
-}
+// Use the generic framework memory store (namespace: 'datasets')
+const memoryStore = require('../../node_modules/my-old-space/drive_root/memory_store');
+try { const dbg = memoryStore.debugKeysSync('datasets'); console.log('[recordEditor] memoryStore init; datasetsCount=', dbg.count); } catch (e) {}
 
 function storeDataset(payload) {
-    const id = generateDatasetId();
+    // Synchronous store into in-memory cache for immediate use by callers.
+    // Also attempt async persistence via memoryStore.set for Redis if available.
     try {
-        // store a deep copy to avoid accidental mutations
-        _datasets[id] = { payload: JSON.parse(JSON.stringify(payload)), created: Date.now() };
+        const id = crypto.randomBytes(12).toString('hex') + '-' + Date.now().toString(36);
+        try {
+            // ensure namespace map exists
+            if (!memoryStore._MEM.has('datasets')) memoryStore._MEM.set('datasets', new Map());
+            // store in same shape as memory_store: { value: <payload>, created, modified }
+            memoryStore._MEM.get('datasets').set(id, { value: JSON.parse(JSON.stringify(payload)), created: Date.now(), modified: Date.now() });
+        } catch (err) {
+            if (!memoryStore._MEM.has('datasets')) memoryStore._MEM.set('datasets', new Map());
+            memoryStore._MEM.get('datasets').set(id, { value: payload, created: Date.now(), modified: Date.now() });
+        }
+        // fire-and-forget async persist to Redis (if memoryStore is configured with Redis)
+        if (memoryStore.set) {
+            try { memoryStore.set('datasets', id, payload).catch(() => {}); } catch (_) {}
+        }
+        return id;
     } catch (e) {
-        // fallback to shallow copy if circular
-        _datasets[id] = { payload: payload, created: Date.now() };
+        try { console.error('[recordEditor] storeDataset error', e); } catch (_) {}
+        return null;
     }
-    return id;
 }
 
 function getData() {
@@ -209,6 +218,14 @@ function getData() {
             value: 'Read only value'
         }
     ];
+    // Test field for selection button
+    data.push({
+        name: 'TP_selector_test',
+        caption: 'Selector Test',
+        valueType: 'STRING',
+        editable: true,
+        value: ''
+    });
     return data;
 }
 
@@ -320,7 +337,8 @@ function getLayout() {
                         { type: 'number', data: 'TP_digits_max0', caption: 'Digits only (maxLength=0 unlimited)', properties: { maxLength: 0 } },
                         { type: 'number', data: 'TP_digits_dpUnlimited', caption: 'Digits only (float unlimited dp)', properties: { decimalPlaces: 0 } },
                         { type: 'textbox', data: 'TP_with_placeholder', caption: 'With placeholder', properties: { placeholder: 'Введите...' } },
-                        { type: 'textbox', data: 'TP_readonly', caption: 'Read only', properties: { readOnly: true } }
+                        { type: 'textbox', data: 'TP_readonly', caption: 'Read only', properties: { readOnly: true } },
+                        { type: 'textbox', data: 'TP_selector_test', caption: 'Selector test', properties: { showSelectionButton: true }}
                     ]
                 },
                 {
@@ -353,13 +371,40 @@ function getLayoutWithData() {
     }
 }
 
-function applyChanges(datasetId, changes) {
+async function applyChanges(datasetId, changes) {
     try {
-        console.log('[recordEditor] applyChanges called. datasetId=', datasetId, 'changes=', JSON.stringify(changes));
+        console.log('[recordEditor] applyChanges called. process.pid=', process && process.pid ? process.pid : 'no-pid', 'module.id=', module && module.id ? module.id : 'no-module-id');
+        // Accept RPC that may pass params object as first argument (framework passes params and sessionID separately)
+        // If the first argument looks like a payload object, unpack it.
+        if (datasetId && typeof datasetId === 'object' && (datasetId.datasetId !== undefined || datasetId.changes !== undefined)) {
+            const payload = datasetId;
+            datasetId = payload.datasetId;
+            changes = payload.changes;
+        }
+
+        try {
+            const dbg = memoryStore.debugKeysSync ? memoryStore.debugKeysSync('datasets') : { count: 0, keys: [] };
+            console.log('[recordEditor] memoryStore datasets count=', dbg.count, 'keysSample=', dbg.keys);
+        } catch (e) { console.log('[recordEditor] memoryStore inspect error', e); }
+        console.log('[recordEditor] incoming datasetId=', datasetId);
+
+        let dsObj = null;
+        try {
+            // Try synchronous local check first
+            if (memoryStore.getSync && memoryStore.getSync('datasets', datasetId) !== null) {
+                dsObj = memoryStore.getSync('datasets', datasetId);
+            } else {
+                // Fallback to async get which may consult the local service
+                dsObj = await memoryStore.get('datasets', datasetId);
+            }
+            console.log('[recordEditor] dataset present=', !!dsObj);
+        } catch (e) { console.log('[recordEditor] dataset presence check error', e); }
+
+        console.log('[recordEditor] changes payload keys=', changes && typeof changes === 'object' ? Object.keys(changes) : typeof changes);
         // For now, only log changes. In future this should validate and apply to stored dataset.
         if (!datasetId) {
             console.warn('[recordEditor] applyChanges: missing datasetId');
-        } else if (!_datasets[datasetId]) {
+        } else if (!dsObj) {
             console.warn('[recordEditor] applyChanges: unknown datasetId', datasetId);
         }
         return { ok: true };

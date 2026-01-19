@@ -45,6 +45,7 @@ try {
                     let element = null;
                     const caption = item.caption || '';
                     const properties = item.properties || {};
+                    const formThis = this;
 
                     // Helper to create textbox-like controls (single and multiline)
                         const createTextControl = (ControlCtor) => {
@@ -158,6 +159,43 @@ try {
                             if (grp.element && item.layout && Array.isArray(item.layout)) {
                                 await this.renderLayout(grp.element, item.layout);
                             }
+                            break;
+                        }
+                        case 'button': {
+                            // Create a button control and wire its action to the form
+                            // Button may be constructed either with no args or with (parent, properties)
+                            let btn = null;
+                            try {
+                                if (typeof Button === 'function') {
+                                    try { btn = new Button(contentArea, properties); } catch (e) { btn = new Button(); }
+                                }
+                            } catch (e) { btn = null; }
+
+                            if (!btn) {
+                                console.warn('Button control is not available');
+                                break;
+                            }
+
+                            try { if (typeof btn.setCaption === 'function') btn.setCaption(caption); } catch (e) {}
+                            try { if (properties && properties.width && typeof btn.setWidth === 'function') btn.setWidth(properties.width); } catch (e) {}
+                            try { if (properties && properties.height && typeof btn.setHeight === 'function') btn.setHeight(properties.height); } catch (e) {}
+
+                            // Draw into content area
+                            try { if (typeof btn.Draw === 'function') btn.Draw(contentArea); else if (btn.element && contentArea.appendChild) contentArea.appendChild(btn.element); } catch (e) {}
+
+                            // Wire click/action to form.doAction
+                            try {
+                                const action = item.action;
+                                const params = item.params || {};
+                                // Prefer onClick property if supported by Button implementation
+                                btn.onClick = function(ev) {
+                                    try { if (action && formThis && typeof formThis.doAction === 'function') formThis.doAction(action, params); } catch (e) {}
+                                };
+                                // Some Button implementations expect to call global handler name, ensure closure has reference
+                            } catch (e) {}
+
+                            // Keep reference in controls map
+                            try { if (item.name) controlsMap[item.name] = btn; } catch (e) {}
                             break;
                         }
                         default:
