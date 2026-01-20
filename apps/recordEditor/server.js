@@ -2,6 +2,7 @@ const crypto = require('crypto');
 
 // Use the generic framework memory store (namespace: 'datasets')
 const memoryStore = require('../../node_modules/my-old-space/drive_root/memory_store');
+const { read } = require('fs');
 try { const dbg = memoryStore.debugKeysSync('datasets'); console.log('[recordEditor] memoryStore init; datasetsCount=', dbg.count); } catch (e) {}
 
 function storeDataset(payload) {
@@ -112,8 +113,28 @@ function getData() {
             valueType: 'LIST',
             editable: true,
             value: [
-                { name: 'Item 1', qty: 2, price: 9.99 },
-                { name: 'Item 2', qty: 5, price: 4.5 }
+                { name: 'Item 1', qty: 2, price: 9.99, checked: true },
+                { name: 'Item 2', qty: 5, price: 4.5, checked: false },
+                { name: 'Item 3', qty: 1, price: 19.5, checked: false },
+                { name: 'Item 4', qty: 10, price: 1.25, checked: true },
+                { name: 'Item 5', qty: 0, price: 0.0, checked: false },
+                { name: 'Item 6', qty: 3, price: 7.75, checked: false },
+                { name: 'Item 7', qty: 8, price: 2.5, checked: true },
+                { name: 'Item 8', qty: 12, price: 0.99, checked: false },
+                { name: 'Item 9', qty: 4, price: 15.0, checked: false },
+                { name: 'Item 10', qty: 6, price: 3.33, checked: false, category: 'opt1' },
+                { name: 'Item 11', qty: 2, price: 29.99, checked: true, category: 'opt2' },
+                { name: 'Item 12', qty: 7, price: 6.0, checked: false, category: 'opt3' },
+                { name: 'Item 13', qty: 15, price: 0.45, checked: false, category: 'opt1' },
+                { name: 'Item 14', qty: 9, price: 4.75, checked: false, category: 'opt2' },
+                { name: 'Item 15', qty: 11, price: 8.8, checked: true, category: 'opt3' },
+                { name: 'Item 16', qty: 14, price: 2.2, checked: false, category: 'opt1' },
+                { name: 'Item 17', qty: 5, price: 12.0, checked: false, category: 'opt2' },
+                { name: 'Item 18', qty: 20, price: 0.5, checked: false, category: 'opt3' },
+                { name: 'Item 19', qty: 13, price: 9.9, checked: false, category: 'opt1' },
+                { name: 'Item 20', qty: 17, price: 1.1, checked: true, category: 'opt2' },
+                { name: 'Item 21', qty: 21, price: 0.75, checked: false, category: 'opt3' },
+                { name: 'Item 22', qty: 25, price: 0.6, checked: false, category: 'opt1' },
             ]
         }
         ,
@@ -301,10 +322,13 @@ function getLayout() {
                                     type: 'table',
                                     data: 'Test_List',
                                     caption: 'Таблица элементов',
+                                    properties: {visibleRows: 6},
                                     columns: [
-                                        { field: 'name', caption: 'Название' },
-                                        { field: 'qty', caption: 'Кол-во' },
-                                        { field: 'price', caption: 'Цена' }
+                                        { type: 'checkbox', data: 'checked', caption: 'Чекнуто' },
+                                        { type: 'textbox', data: 'name', caption: 'Название'},
+                                        { type: 'emunList', data: 'category', caption: 'Категория', options: [ { value: 'opt1', caption: 'Опция 1' }, { value: 'opt2', caption: 'Опция 2' }, { value: 'opt3', caption: 'Опция 3' } ] , properties: { } },
+                                        { type: 'number', data: 'qty', caption: 'Количество', readOnly: false, properties: { readOnly: true } },
+                                        { type: 'number', data: 'price', caption: 'Цена'}
                                     ]
                                 }
                             ]

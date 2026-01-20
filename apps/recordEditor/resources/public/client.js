@@ -43,8 +43,9 @@ try {
                 appForm.renderItem = async function(item, contentArea = null) {
                     contentArea = contentArea || this.getContentArea();
                     let element = null;
-                    const caption = item.caption || '';
                     const properties = item.properties || {};
+                    // Allow suppressing captions for embedded controls (e.g., table cells)
+                    const caption = (properties && properties.noCaption) ? '' : (item.caption || '');
                     const formThis = this;
 
                     // Helper to create textbox-like controls (single and multiline)
@@ -196,6 +197,39 @@ try {
 
                             // Keep reference in controls map
                             try { if (item.name) controlsMap[item.name] = btn; } catch (e) {}
+                            break;
+                        }
+                        case 'table': {
+                            // Simple table renderer: uses Table UI class which creates a full table
+                            try {
+                                const tblProps = Object.assign({}, properties || {}, { columns: item.columns || [], dataKey: item.data, appForm: this });
+                                console.log('[recordEditor] creating Table for dataKey=', tblProps.dataKey, 'columns=', (tblProps.columns||[]).length);
+                                // Always use the lightweight Table UI class (styled like DynamicTable)
+                                const tbl = new Table(contentArea, tblProps);
+                                try { if (typeof tbl.setCaption === 'function') tbl.setCaption(caption); } catch (e) {}
+                                try { if (typeof tbl.Draw === 'function') tbl.Draw(contentArea); } catch (e) {}
+                                if (item.name) controlsMap[item.name] = tbl;
+                            } catch (e) {
+                                console.error('Error creating table control', e);
+                            }
+                            break;
+                        }
+                        case 'tabs': {
+                            try {
+                                // Create Tabs like other controls: new Tabs(parent, properties)
+                                let tabsCtrl = null;
+                                try { tabsCtrl = new Tabs(contentArea, { tabs: item.tabs || [], appForm: this }); } catch (e) {
+                                    // Fallback to UI_Classes.Tabs if global Tabs isn't available
+                                    const TabsClass = (window.UI_Classes && window.UI_Classes.Tabs) ? window.UI_Classes.Tabs : null;
+                                    if (!TabsClass) throw new Error('Tabs control is not available');
+                                    tabsCtrl = new TabsClass(contentArea, { tabs: item.tabs || [], appForm: this });
+                                }
+                                try { if (typeof tabsCtrl.setCaption === 'function') tabsCtrl.setCaption(caption); } catch (e) {}
+                                try { if (typeof tabsCtrl.Draw === 'function') tabsCtrl.Draw(contentArea); } catch (e) {}
+                                if (item.name) controlsMap[item.name] = tabsCtrl;
+                            } catch (e) {
+                                console.error('Error creating tabs control', e);
+                            }
                             break;
                         }
                         default:
