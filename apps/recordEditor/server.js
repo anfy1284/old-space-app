@@ -452,7 +452,7 @@ module.exports = {
 
 
 /*
-const { registerDynamicTableMethods } = require('../../node_modules/my-old-space/drive_root/dynamicTableRegistry');
+const { registerDynamicTableMethods } = require('../../node_modules/my-old-space/drive_forms/dynamicTableRegistry');
 
 // Регистрация стандартных методов для работы с таблицами
 const dynamicTableMethods = registerDynamicTableMethods('myNewApp', {
