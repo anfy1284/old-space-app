@@ -247,6 +247,21 @@ function getData() {
         editable: true,
         value: ''
     });
+    // Placeholder for a record selector: looks like a textbox but allows selecting a record
+    data.push({
+        name: 'Related_Record',
+        caption: 'Связанная запись',
+        valueType: 'RECORD',
+        editable: true,
+        // value may hold an object like { id: 123, name: '...' } or be empty
+        value: null,
+        // metadata for client to know which table/fields to query when implementing selector
+        selection: {
+            table: 'organizations',
+            idField: 'id',
+            displayField: 'name'
+        }
+    });
     return data;
 }
 
@@ -342,6 +357,8 @@ function getLayout() {
                     layout: [
                         { type: 'textbox', data: 'Meta_Owner', caption: 'Владелец' },
                         { type: 'textbox', data: 'Meta_Tag', caption: 'Тег' },
+                        // Special control: record selector (client may render it like a textbox with a picker)
+                        { type: 'recordSelector', data: 'Related_Record', caption: 'Связанная запись', properties: { selection: { table: 'organizations', idField: 'id', displayField: 'name' }, listMode: true, listSource: { table: 'organizations', idField: 'id', displayField: 'name', limit: 10 } } },
                         { type: 'checkbox', data: 'Test_Record_4', caption: 'Флаг 4 (повторно)' }
                     ]
                 },
@@ -440,46 +457,88 @@ async function applyChanges(datasetId, changes) {
 
 
 // Export methods so framework's RPC (callServerMethod) can find them
+// Export methods so framework's RPC (callServerMethod) can find them
+// Core app methods are exported first; below we enhance exports with
+// dynamic table helpers so TextBox.listSource preloads work.
+const { registerDynamicTableMethods } = require('../../node_modules/my-old-space/drive_forms/dynamicTableRegistry');
+
+// Регистрация стандартных методов для работы с таблицами (reuse organizations schema)
+const dynamicTableMethods = registerDynamicTableMethods('recordEditor', {
+    // Маппинг таблиц на модели
+    tables: {
+        'organizations': 'Organizations',
+        'users': 'Users'
+    },
+    // Конфигурация полей для каждой таблицы (copied from organizations app)
+    tableFields: {
+        'organizations': [
+            {
+                name: 'id',
+                caption: 'ID',
+                type: 'INTEGER',
+                width: 80,
+                source: 'field', // берется из поля модели
+                editable: false  // ID не редактируется
+            },
+            {
+                name: 'name',
+                caption: 'Название организации',
+                type: 'STRING',
+                width: 250,
+                source: 'field',
+                editable: true
+            },
+            {
+                name: 'accommodationTypeId',
+                caption: 'Тип размещения',
+                type: 'INTEGER',
+                width: 150,
+                source: 'field',
+                editable: false  // FK пока не редактируем
+            },
+            {
+                name: 'description',
+                caption: 'Описание',
+                type: 'STRING',
+                width: 300,
+                source: 'field',
+                editable: true
+            },
+            {
+                name: 'isActive',
+                caption: 'Активна',
+                type: 'BOOLEAN',
+                width: 100,
+                source: 'field',
+                editable: true
+            },
+            {
+                name: 'fullInfo',
+                caption: 'Полная информация',
+                type: 'STRING',
+                width: 200,
+                source: 'computed',
+                compute: (row) => `${row.name} (${row.isActive ? 'активна' : 'неактивна'})`
+            }
+        ]
+    },
+    // Опциональная проверка доступа
+    accessCheck: async (user, tableName, action) => {
+        // Разрешаем доступ всем авторизованным пользователям (включая гостей)
+        return true;
+    }
+});
+
 module.exports = {
     getLayout,
     getData,
     getLayoutWithData,
-    applyChanges
+    applyChanges,
+
+    // Dynamic table helpers used by UI controls (preload/dropdowns etc.)
+    getDynamicTableData: dynamicTableMethods.getDynamicTableData,
+    subscribeToTable: dynamicTableMethods.subscribeToTable,
+    saveClientState: dynamicTableMethods.saveClientState,
+    recordTableEdit: dynamicTableMethods.recordTableEdit,
+    commitTableEdits: dynamicTableMethods.commitTableEdits
 };
-
-
-
-
-
-/*
-const { registerDynamicTableMethods } = require('../../node_modules/my-old-space/drive_forms/dynamicTableRegistry');
-
-// Регистрация стандартных методов для работы с таблицами
-const dynamicTableMethods = registerDynamicTableMethods('myNewApp', {
-    // Маппинг таблиц на модели
-    tables: {
-        // Пример: 'table_name': 'ModelName'
-    },
-    // Конфигурация полей для каждой таблицы
-    tableFields: {
-        // Пример конфигурации таблицы:
-        // 'table_name': [
-        //     {
-        //         name: 'id',
-        //         caption: 'ID',
-        //         type: 'INTEGER',
-        //         width: 80,
-        //         source: 'field',
-        //         editable: false
-        //     }
-        // ]
-    }
-});
-
-// Экспортируем методы для использования в приложении
-module.exports = {
-    ...dynamicTableMethods,
-    
-    // Дополнительные кастомные методы можно добавить здесь
-};
-*/

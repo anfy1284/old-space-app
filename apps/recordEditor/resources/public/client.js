@@ -42,6 +42,13 @@ try {
 
                 appForm.renderItem = async function(item, contentArea = null) {
                     contentArea = contentArea || this.getContentArea();
+                    // Avoid duplicate rendering: if a control for this data key already
+                    // exists inside the target container, skip rendering again.
+                    try {
+                        if (item && item.data && contentArea && contentArea.querySelector && contentArea.querySelector('[data-field="' + item.data + '"]')) {
+                            return;
+                        }
+                    } catch (e) {}
                     let element = null;
                     const properties = item.properties || {};
                     // Allow suppressing captions for embedded controls (e.g., table cells)
@@ -128,6 +135,56 @@ try {
                         }
                         case 'textarea': {
                             createTextControl(MultilineTextBox);
+                            break;
+                        }
+                        case 'recordSelector': {
+                            // Render like a textbox but add a small selector button
+                            const dataKey = item.data;
+                            let val = '';
+                            if (item.value !== null && item.value !== undefined) val = item.value;
+                            else if (dataKey && this._dataMap && Object.prototype.hasOwnProperty.call(this._dataMap, dataKey)) {
+                                const rec = this._dataMap[dataKey];
+                                // If stored value is an object, show displayField if available
+                                if (rec && typeof rec.value === 'object' && rec.value !== null) {
+                                    const disp = (rec.value && rec.value.name) || (rec.value && rec.value.id) || '';
+                                    val = disp;
+                                } else {
+                                    val = (rec && (rec.value !== undefined)) ? rec.value : (rec && rec !== undefined ? rec : '');
+                                }
+                            }
+
+                            // Prepare properties and create a single TextBox instance.
+                            // If selection metadata provided, create control with selection button
+                            const baseProps = Object.assign({}, properties || {}, { readOnly: false });
+                            const hasSelection = !!(properties && properties.selection);
+                            const finalProps = Object.assign({}, baseProps);
+                            if (hasSelection) {
+                                finalProps.selection = properties.selection;
+                                finalProps.showSelectionButton = true;
+                            }
+                            let ctrl = new TextBox(contentArea, finalProps);
+                            try { if (typeof ctrl.setText === 'function') ctrl.setText(String(val)); } catch (e) {}
+                            try { if (typeof ctrl.setCaption === 'function') ctrl.setCaption(caption); } catch (e) {}
+                            try { ctrl.Draw(contentArea); } catch (e) {}
+
+                            // Sync changes back to this._dataMap when control value changes
+                            try {
+                                if (item.data) {
+                                    const fieldKey = item.data;
+                                    const handler = (ev) => {
+                                        try {
+                                            const newVal = (typeof ctrl.getText === 'function') ? ctrl.getText() : (ctrl.element ? ctrl.element.value : undefined);
+                                            if (!this._dataMap) this._dataMap = {};
+                                            if (!this._dataMap[fieldKey]) this._dataMap[fieldKey] = { name: fieldKey, value: newVal };
+                                            else this._dataMap[fieldKey].value = newVal;
+                                        } catch (_) {}
+                                    };
+                                    try { if (ctrl.element && ctrl.element.addEventListener) ctrl.element.addEventListener('input', handler); } catch (_) {}
+                                }
+                            } catch (_) {}
+
+                            try { if (item.data && ctrl.element) ctrl.element.dataset.field = item.data; } catch (e) {}
+                            if (item.name) controlsMap[item.name] = ctrl;
                             break;
                         }
                         case 'checkbox': {

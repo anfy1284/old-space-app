@@ -12,12 +12,14 @@ try {
         const orgForm = new Form();
         const controlsMap = {};
         orgForm.renderItem = async function(item, contentArea = null) {
-            console.log('[organizations] renderItem called:', item && item.type, item && (item.data || item.name || item.caption));
             contentArea = contentArea || this.getContentArea();
             let element = null;
             const properties = item.properties || {};
+            // Allow suppressing captions for embedded controls (e.g., table cells)
             const caption = (properties && properties.noCaption) ? '' : (item.caption || '');
+            const formThis = this;
 
+            // Helper to create textbox-like controls (single and multiline)
             const createTextControl = (ControlCtor) => {
                 const ctrl = new ControlCtor(contentArea, properties);
                 let val = '';
@@ -26,10 +28,18 @@ try {
                     const rec = this._dataMap[item.data];
                     val = (rec && (rec.value !== undefined)) ? rec.value : (rec && rec !== undefined ? rec : '');
                 }
+                // Prefer server-provided display text when present
+                try {
+                    if (item.properties && item.properties.__display !== undefined) {
+                        val = item.properties.__display;
+                    }
+                } catch (e) {}
                 try { if (typeof ctrl.setText === 'function') ctrl.setText(String(val)); } catch (e) {}
+                // rows support for multiline controls
                 try { if (typeof item.rows === 'number' && typeof ctrl.setRows === 'function') ctrl.setRows(item.rows); else if (properties && properties.rows && typeof ctrl.setRows === 'function') ctrl.setRows(properties.rows); } catch (e) {}
                 try { if (typeof ctrl.setCaption === 'function') ctrl.setCaption(caption); } catch (e) {}
                 ctrl.Draw(contentArea);
+                // To avoid browser heuristics we now store the mapping on dataset
                 try { if (item.data && ctrl.element) { ctrl.element.dataset.field = item.data; } } catch (e) {}
                 try { if (ctrl.element) ctrl.element.style.width = '100%'; } catch (e) {}
                 if (item.name) controlsMap[item.name] = ctrl;
@@ -45,6 +55,7 @@ try {
                     break;
                 }
                 case 'emunList': {
+                    // Render a textbox with prepared list options (read-only + dropdown)
                     const dataKey = item.data;
                     let val = '';
                     if (item.value !== null && item.value !== undefined) val = item.value;
@@ -52,6 +63,10 @@ try {
                         const rec = this._dataMap[dataKey];
                         val = (rec && (rec.value !== undefined)) ? rec.value : (rec && rec !== undefined ? rec : '');
                     }
+                    // Prefer server-provided display text when present
+                    try { if (item.properties && item.properties.__display !== undefined) val = item.properties.__display; } catch (e) {}
+
+                    // Gather list items from server-provided record.options or inline item.options
                     let listItems = [];
                     try {
                         if (dataKey && this._dataMap && this._dataMap[dataKey] && Array.isArray(this._dataMap[dataKey].options)) {
@@ -68,6 +83,7 @@ try {
                     try { if (typeof ctrl.setText === 'function') ctrl.setText(String(val)); } catch (e) {}
                     try { if (typeof ctrl.setCaption === 'function') ctrl.setCaption(caption); } catch (e) {}
                     ctrl.Draw(contentArea);
+                    // Sync changes back to this._dataMap when control value changes
                     try {
                         if (item.data) {
                             const fieldKey = item.data;
@@ -90,8 +106,67 @@ try {
                     createTextControl(MultilineTextBox);
                     break;
                 }
+                case 'recordSelector': {
+                    // Render like a textbox but add a small selector button
+                    const dataKey = item.data;
+                    let val = '';
+                    if (item.value !== null && item.value !== undefined) val = item.value;
+                    else if (dataKey && this._dataMap && Object.prototype.hasOwnProperty.call(this._dataMap, dataKey)) {
+                        const rec = this._dataMap[dataKey];
+                        // If stored value is an object, show displayField if available
+                        if (rec && typeof rec.value === 'object' && rec.value !== null) {
+                            const disp = (rec.value && rec.value.name) || (rec.value && rec.value.id) || '';
+                            val = disp;
+                        } else {
+                            val = (rec && (rec.value !== undefined)) ? rec.value : (rec && rec !== undefined ? rec : '');
+                        }
+                    }
+                    // Prefer server-provided display text when present
+                    try { if (item.properties && item.properties.__display !== undefined) val = item.properties.__display; } catch (e) {}
+
+                    const propClone = Object.assign({}, properties || {}, { readOnly: false });
+                    let ctrl = new TextBox(contentArea, propClone);
+                    try { if (typeof ctrl.setText === 'function') ctrl.setText(String(val)); } catch (e) {}
+                    try { if (typeof ctrl.setCaption === 'function') ctrl.setCaption(caption); } catch (e) {}
+                    ctrl.Draw(contentArea);
+
+                    // Use TextBox built-in selection button when requested
+                    const propClone2 = Object.assign({}, propClone);
+                    if (properties && properties.selection) propClone2.selection = properties.selection;
+                    propClone2.showSelectionButton = true;
+                    // recreate control with selection properties applied
+                    try { if (typeof ctrl.destroy === 'function') ctrl.destroy(); } catch (_) {}
+                    const ctrlSel = new TextBox(contentArea, propClone2);
+                    try { if (typeof ctrlSel.setText === 'function') ctrlSel.setText(String(val)); } catch (e) {}
+                    try { if (typeof ctrlSel.setCaption === 'function') ctrlSel.setCaption(caption); } catch (e) {}
+                    try { ctrlSel.Draw(contentArea); } catch (e) { ctrl.Draw(contentArea); }
+                    // replace ctrl reference with ctrlSel for downstream wiring
+                    ctrl = ctrlSel;
+
+                    // Sync changes back to this._dataMap when control value changes
+                    try {
+                        if (item.data) {
+                            const fieldKey = item.data;
+                            const handler = (ev) => {
+                                try {
+                                    const newVal = (typeof ctrl.getText === 'function') ? ctrl.getText() : (ctrl.element ? ctrl.element.value : undefined);
+                                    if (!this._dataMap) this._dataMap = {};
+                                    if (!this._dataMap[fieldKey]) this._dataMap[fieldKey] = { name: fieldKey, value: newVal };
+                                    else this._dataMap[fieldKey].value = newVal;
+                                } catch (_) {}
+                            };
+                            try { if (ctrl.element && ctrl.element.addEventListener) ctrl.element.addEventListener('input', handler); } catch (_) {}
+                        }
+                    } catch (_) {}
+
+                    try { if (item.data && ctrl.element) ctrl.element.dataset.field = item.data; } catch (e) {}
+                    if (item.name) controlsMap[item.name] = ctrl;
+                    break;
+                }
                 case 'checkbox': {
+                    // Create checkbox as a child of contentArea so it flows below previous elements
                     const cb = new CheckBox(contentArea, properties);
+                    // Determine checked state: prefer explicit item.value, fall back to loaded data by item.data
                     let checked = !!item.value;
                     if ((item.value === null || item.value === undefined) && item.data && this._dataMap && Object.prototype.hasOwnProperty.call(this._dataMap, item.data)) {
                         const rec = this._dataMap[item.data];
@@ -99,6 +174,7 @@ try {
                     }
                     cb.setChecked(checked);
                     cb.setHeight(22);
+                    // Ensure caption is passed to control so FormInput draws label
                     cb.setCaption(caption);
                     cb.Draw(contentArea);
                     try { if (item.data && cb.element) cb.element.dataset.field = item.data; } catch (e) {}
@@ -106,6 +182,7 @@ try {
                     break;
                 }
                 case 'group': {
+                    // Create group container and recursively render its layout into the group's element
                     const grp = new Group(contentArea, properties);
                     grp.setCaption(caption);
                     if (item.orientation) grp.orientation = item.orientation;
@@ -116,6 +193,8 @@ try {
                     break;
                 }
                 case 'button': {
+                    // Create a button control and wire its action to the form
+                    // Button may be constructed either with no args or with (parent, properties)
                     let btn = null;
                     try {
                         if (typeof Button === 'function') {
@@ -132,13 +211,16 @@ try {
                     try { if (properties && properties.width && typeof btn.setWidth === 'function') btn.setWidth(properties.width); } catch (e) {}
                     try { if (properties && properties.height && typeof btn.setHeight === 'function') btn.setHeight(properties.height); } catch (e) {}
 
+                    // Draw into content area
                     try { if (typeof btn.Draw === 'function') btn.Draw(contentArea); else if (btn.element && contentArea.appendChild) contentArea.appendChild(btn.element); } catch (e) {}
 
+                    // Wire click/action to form.doAction
                     try {
                         const action = item.action;
                         const params = item.params || {};
+                        // Prefer onClick property if supported by Button implementation
                         btn.onClick = function(ev) {
-                            try { if (action && this && typeof this.doAction === 'function') this.doAction(action, params); } catch (e) {}
+                            try { if (action && formThis && typeof formThis.doAction === 'function') formThis.doAction(action, params); } catch (e) {}
                         };
                     } catch (e) {}
 
@@ -146,8 +228,10 @@ try {
                     break;
                 }
                 case 'table': {
+                    // Simple table renderer: uses Table UI class which creates a full table
                     try {
                         const tblProps = Object.assign({}, properties || {}, { columns: item.columns || [], dataKey: item.data, appForm: this });
+                        console.log('[organizations] creating Table for dataKey=', tblProps.dataKey, 'columns=', (tblProps.columns||[]).length);
                         const tbl = new Table(contentArea, tblProps);
                         try { if (typeof tbl.setCaption === 'function') tbl.setCaption(caption); } catch (e) {}
                         try { if (typeof tbl.Draw === 'function') tbl.Draw(contentArea); } catch (e) {}
@@ -159,8 +243,10 @@ try {
                 }
                 case 'tabs': {
                     try {
+                        // Create Tabs like other controls: new Tabs(parent, properties)
                         let tabsCtrl = null;
                         try { tabsCtrl = new Tabs(contentArea, { tabs: item.tabs || [], appForm: this }); } catch (e) {
+                            // Fallback to UI_Classes.Tabs if global Tabs isn't available
                             const TabsClass = (window.UI_Classes && window.UI_Classes.Tabs) ? window.UI_Classes.Tabs : null;
                             if (!TabsClass) throw new Error('Tabs control is not available');
                             tabsCtrl = new TabsClass(contentArea, { tabs: item.tabs || [], appForm: this });
