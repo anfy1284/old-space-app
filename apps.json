@@ -12,6 +12,18 @@
         {
             "name": "recordEditor",
             "path": "/recordEditor"
+        },
+        {
+            "name": "recordEditor2",
+            "path": "/recordEditor2"
+        },
+        {
+            "name": "demoApp",
+            "path": "/demoApp"
+        },
+        {
+            "name": "demoApp2",
+            "path": "/demoApp2"
         }
     ]
 }

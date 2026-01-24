@@ -42,13 +42,6 @@ try {
 
                 appForm.renderItem = async function(item, contentArea = null) {
                     contentArea = contentArea || this.getContentArea();
-                    // Avoid duplicate rendering: if a control for this data key already
-                    // exists inside the target container, skip rendering again.
-                    try {
-                        if (item && item.data && contentArea && contentArea.querySelector && contentArea.querySelector('[data-field="' + item.data + '"]')) {
-                            return;
-                        }
-                    } catch (e) {}
                     let element = null;
                     const properties = item.properties || {};
                     // Allow suppressing captions for embedded controls (e.g., table cells)
@@ -56,7 +49,7 @@ try {
                     const formThis = this;
 
                     // Helper to create textbox-like controls (single and multiline)
-                        const createTextControl = (ControlCtor) => {
+                    const createTextControl = (ControlCtor) => {
                         const ctrl = new ControlCtor(contentArea, properties);
                         let val = '';
                         if (item.value !== null && item.value !== undefined) val = item.value;
@@ -64,14 +57,17 @@ try {
                             const rec = this._dataMap[item.data];
                             val = (rec && (rec.value !== undefined)) ? rec.value : (rec && rec !== undefined ? rec : '');
                         }
+                        // Prefer server-provided display text when present
+                        try {
+                            if (item.properties && item.properties.__display !== undefined) {
+                                val = item.properties.__display;
+                            }
+                        } catch (e) {}
                         try { if (typeof ctrl.setText === 'function') ctrl.setText(String(val)); } catch (e) {}
                         // rows support for multiline controls
                         try { if (typeof item.rows === 'number' && typeof ctrl.setRows === 'function') ctrl.setRows(item.rows); else if (properties && properties.rows && typeof ctrl.setRows === 'function') ctrl.setRows(properties.rows); } catch (e) {}
                         try { if (typeof ctrl.setCaption === 'function') ctrl.setCaption(caption); } catch (e) {}
                         ctrl.Draw(contentArea);
-                        // Previously we assigned semantic name to the element so external code
-                        // could find it via `document.getElementsByName(dataKey)`:
-                        // try { if (item.data && ctrl.element) ctrl.element.name = item.data; } catch (e) {}
                         // To avoid browser heuristics we now store the mapping on dataset
                         try { if (item.data && ctrl.element) { ctrl.element.dataset.field = item.data; } } catch (e) {}
                         try { if (ctrl.element) ctrl.element.style.width = '100%'; } catch (e) {}
@@ -96,6 +92,8 @@ try {
                                 const rec = this._dataMap[dataKey];
                                 val = (rec && (rec.value !== undefined)) ? rec.value : (rec && rec !== undefined ? rec : '');
                             }
+                            // Prefer server-provided display text when present
+                            try { if (item.properties && item.properties.__display !== undefined) val = item.properties.__display; } catch (e) {}
 
                             // Gather list items from server-provided record.options or inline item.options
                             let listItems = [];
@@ -152,20 +150,27 @@ try {
                                     val = (rec && (rec.value !== undefined)) ? rec.value : (rec && rec !== undefined ? rec : '');
                                 }
                             }
+                            // Prefer server-provided display text when present
+                            try { if (item.properties && item.properties.__display !== undefined) val = item.properties.__display; } catch (e) {}
 
-                            // Prepare properties and create a single TextBox instance.
-                            // If selection metadata provided, create control with selection button
-                            const baseProps = Object.assign({}, properties || {}, { readOnly: false });
-                            const hasSelection = !!(properties && properties.selection);
-                            const finalProps = Object.assign({}, baseProps);
-                            if (hasSelection) {
-                                finalProps.selection = properties.selection;
-                                finalProps.showSelectionButton = true;
-                            }
-                            let ctrl = new TextBox(contentArea, finalProps);
+                            const propClone = Object.assign({}, properties || {}, { readOnly: false });
+                            let ctrl = new TextBox(contentArea, propClone);
                             try { if (typeof ctrl.setText === 'function') ctrl.setText(String(val)); } catch (e) {}
                             try { if (typeof ctrl.setCaption === 'function') ctrl.setCaption(caption); } catch (e) {}
-                            try { ctrl.Draw(contentArea); } catch (e) {}
+                            ctrl.Draw(contentArea);
+
+                            // Use TextBox built-in selection button when requested
+                            const propClone2 = Object.assign({}, propClone);
+                            if (properties && properties.selection) propClone2.selection = properties.selection;
+                            propClone2.showSelectionButton = true;
+                            // recreate control with selection properties applied
+                            try { if (typeof ctrl.destroy === 'function') ctrl.destroy(); } catch (_) {}
+                            const ctrlSel = new TextBox(contentArea, propClone2);
+                            try { if (typeof ctrlSel.setText === 'function') ctrlSel.setText(String(val)); } catch (e) {}
+                            try { if (typeof ctrlSel.setCaption === 'function') ctrlSel.setCaption(caption); } catch (e) {}
+                            try { ctrlSel.Draw(contentArea); } catch (e) { ctrl.Draw(contentArea); }
+                            // replace ctrl reference with ctrlSel for downstream wiring
+                            ctrl = ctrlSel;
 
                             // Sync changes back to this._dataMap when control value changes
                             try {
@@ -201,9 +206,6 @@ try {
                             // Ensure caption is passed to control so FormInput draws label
                             cb.setCaption(caption);
                             cb.Draw(contentArea);
-                            // If layout references a data key, set element name so external wiring can find it
-                            // (historically we set `cb.element.name = item.data`, leaving commented for safety)
-                            // try { if (item.data && cb.element) cb.element.name = item.data; } catch (e) {}
                             try { if (item.data && cb.element) cb.element.dataset.field = item.data; } catch (e) {}
                             if (item.name) controlsMap[item.name] = cb;
                             break;
@@ -249,23 +251,37 @@ try {
                                 btn.onClick = function(ev) {
                                     try { if (action && formThis && typeof formThis.doAction === 'function') formThis.doAction(action, params); } catch (e) {}
                                 };
-                                // Some Button implementations expect to call global handler name, ensure closure has reference
                             } catch (e) {}
 
-                            // Keep reference in controls map
                             try { if (item.name) controlsMap[item.name] = btn; } catch (e) {}
                             break;
                         }
                         case 'table': {
-                            // Simple table renderer: uses Table UI class which creates a full table
+                            // Table renderer: prefer DynamicTable for DB-backed tables when requested,
+                            // otherwise fallback to the lightweight Table UI class.
                             try {
                                 const tblProps = Object.assign({}, properties || {}, { columns: item.columns || [], dataKey: item.data, appForm: this });
-                                console.log('[recordEditor] creating Table for dataKey=', tblProps.dataKey, 'columns=', (tblProps.columns||[]).length);
-                                // Always use the lightweight Table UI class (styled like DynamicTable)
-                                const tbl = new Table(contentArea, tblProps);
-                                try { if (typeof tbl.setCaption === 'function') tbl.setCaption(caption); } catch (e) {}
-                                try { if (typeof tbl.Draw === 'function') tbl.Draw(contentArea); } catch (e) {}
-                                if (item.name) controlsMap[item.name] = tbl;
+                                const wantsDynamic = !!(properties && (properties.dynamicTable || properties.appName || properties.tableName));
+                                if (wantsDynamic && typeof DynamicTable === 'function') {
+                                    const dtConf = Object.assign({}, tblProps);
+                                    // forward explicit appName/tableName if provided
+                                    if (properties && properties.appName) dtConf.appName = properties.appName;
+                                    if (properties && properties.tableName) dtConf.tableName = properties.tableName;
+                                    dtConf.rowHeight = dtConf.rowHeight || 25;
+                                    dtConf.multiSelect = dtConf.multiSelect || false;
+                                    dtConf.editable = (dtConf.editable === undefined) ? true : dtConf.editable;
+                                    dtConf.showToolbar = (dtConf.showToolbar === undefined) ? true : dtConf.showToolbar;
+                                    const tbl = new DynamicTable(dtConf);
+                                    try { if (typeof tbl.setCaption === 'function') tbl.setCaption(caption); } catch (e) {}
+                                    try { if (typeof tbl.Draw === 'function') tbl.Draw(contentArea); } catch (e) {}
+                                    if (item.name) controlsMap[item.name] = tbl;
+                                } else {
+                                    console.log('[recordEditor] creating Table for dataKey=', tblProps.dataKey, 'columns=', (tblProps.columns||[]).length);
+                                    const tbl = new Table(contentArea, tblProps);
+                                    try { if (typeof tbl.setCaption === 'function') tbl.setCaption(caption); } catch (e) {}
+                                    try { if (typeof tbl.Draw === 'function') tbl.Draw(contentArea); } catch (e) {}
+                                    if (item.name) controlsMap[item.name] = tbl;
+                                }
                             } catch (e) {
                                 console.error('Error creating table control', e);
                             }
