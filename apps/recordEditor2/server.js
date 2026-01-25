@@ -2,33 +2,11 @@ const crypto = require('crypto');
 
 // Use the generic framework memory store (namespace: 'datasets')
 const memoryStore = require('../../node_modules/my-old-space/drive_root/memory_store');
+const { dataApp } = require('../../node_modules/my-old-space/drive_forms/dataApp');
 const { read } = require('fs');
 try { const dbg = memoryStore.debugKeysSync('datasets'); console.log('[recordEditor] memoryStore init; datasetsCount=', dbg.count); } catch (e) {}
 
-function storeDataset(payload) {
-    // Synchronous store into in-memory cache for immediate use by callers.
-    // Also attempt async persistence via memoryStore.set for Redis if available.
-    try {
-        const id = crypto.randomBytes(12).toString('hex') + '-' + Date.now().toString(36);
-        try {
-            // ensure namespace map exists
-            if (!memoryStore._MEM.has('datasets')) memoryStore._MEM.set('datasets', new Map());
-            // store in same shape as memory_store: { value: <payload>, created, modified }
-            memoryStore._MEM.get('datasets').set(id, { value: JSON.parse(JSON.stringify(payload)), created: Date.now(), modified: Date.now() });
-        } catch (err) {
-            if (!memoryStore._MEM.has('datasets')) memoryStore._MEM.set('datasets', new Map());
-            memoryStore._MEM.get('datasets').set(id, { value: payload, created: Date.now(), modified: Date.now() });
-        }
-        // fire-and-forget async persist to Redis (if memoryStore is configured with Redis)
-        if (memoryStore.set) {
-            try { memoryStore.set('datasets', id, payload).catch(() => {}); } catch (_) {}
-        }
-        return id;
-    } catch (e) {
-        try { console.error('[recordEditor] storeDataset error', e); } catch (_) {}
-        return null;
-    }
-}
+// use shared.storeDataset for dataset persistence
 
 function getData() {
     let data = [
@@ -417,7 +395,7 @@ function getLayoutWithData() {
         const data = getData();
         // Store the returned payload in server memory and expose a datasetId
         const payload = { layout: layout || [], data: data || [] };
-        const datasetId = storeDataset(payload);
+        const datasetId = dataApp.storeDataset(payload);
         return { layout: payload.layout, data: payload.data, datasetId };
     } catch (e) {
         return { layout: [], data: [], datasetId: null };
@@ -443,13 +421,8 @@ async function applyChanges(datasetId, changes) {
 
         let dsObj = null;
         try {
-            // Try synchronous local check first
-            if (memoryStore.getSync && memoryStore.getSync('datasets', datasetId) !== null) {
-                dsObj = memoryStore.getSync('datasets', datasetId);
-            } else {
-                // Fallback to async get which may consult the local service
-                dsObj = await memoryStore.get('datasets', datasetId);
-            }
+            // Delegate dataset retrieval to dataApp helper (handles sync/async store backends)
+            dsObj = await dataApp.getDataset(datasetId);
             console.log('[recordEditor] dataset present=', !!dsObj);
         } catch (e) { console.log('[recordEditor] dataset presence check error', e); }
 

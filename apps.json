@@ -24,6 +24,10 @@
         {
             "name": "demoApp2",
             "path": "/demoApp2"
+        },
+        {
+            "name": "uniListForm",
+            "path": "/uniListForm"
         }
     ]
 }
