@@ -29,5 +29,55 @@
             "name": "uniListForm",
             "path": "/uniListForm"
         }
+    ],
+    "mainMenuCommands": [
+        {
+            "id": "main",
+            "items": [
+                {
+                    "caption": "Neues",
+                    "items": [
+                        {
+                            "caption": "Test Menu Item A",
+                            "action": "open",
+                            "params": {
+                                "dbTable": "organizations"
+                            }
+                        },
+                        {
+                            "caption": "Test Menu Item B",
+                            "action": "open",
+                            "params": {
+                                "dbTable": "users"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "main",
+            "items": [
+                {
+                    "caption": "Neues",
+                    "items": [
+                        {
+                            "caption": "Test Menu Item A",
+                            "action": "open",
+                            "params": {
+                                "dbTable": "organizations"
+                            }
+                        },
+                        {
+                            "caption": "Test Menu Item B",
+                            "action": "open",
+                            "params": {
+                                "dbTable": "users"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
     ]
 }

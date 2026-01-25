@@ -39,16 +39,20 @@ try {
                 async onOpen(params) {
                     const tableName = params && (params.dbTable || params.table);
                     if (!instanceOnOpen(tableName)) return;
+                    // Capture the open params so loader overrides can forward them to server
+                    const openParams = Object.assign({}, params || {});
+                    // Normalize dbTable/table -> tableName so server resolvers receive `params.tableName`
+                    openParams.tableName = openParams.tableName || openParams.dbTable || openParams.table || '';
 
-                    // Override DataForm methods so subsequent internal loads include tableName
+                    // Override DataForm methods so subsequent internal loads include openParams
                     try {
                         appForm.appName = APP_NAME;
                         appForm.getLayoutWithData = async function() {
-                            try { return await callServerMethod(APP_NAME, 'getLayoutWithData', { tableName: tableName }); } catch (e) { throw e; }
+                            try { return await callServerMethod(APP_NAME, 'getLayoutWithData', openParams); } catch (e) { throw e; }
                         };
                         appForm.loadData = async function() {
                             try {
-                                const d = await callServerMethod(APP_NAME, 'getData', { tableName: tableName });
+                                const d = await callServerMethod(APP_NAME, 'getData', openParams);
                                 this._dataMap = {};
                                 if (d && Array.isArray(d)) {
                                     for (const rec of d) {
@@ -66,6 +70,11 @@ try {
                     try { appForm.Draw(); } catch (e) { console.error(e); }
                 },
                 onAction(action, params) {
+                    // Support framework calling instance.onAction('open', params)
+                    if (action === 'open') {
+                        try { if (typeof this.onOpen === 'function') this.onOpen(params); } catch (e) { console.error(e); }
+                        return;
+                    }
                     if (typeof appForm.doAction === 'function') {
                         try { appForm.doAction(action, params); } catch (e) { console.error(e); }
                     }

@@ -9,31 +9,34 @@ try { const dbg = memoryStore.debugKeysSync('datasets'); console.log('[recordEdi
 
 // use shared.storeDataset for dataset persistence
 
-function getData() {
-    let data = []
+function getData(params) {
+    // params may contain opening options; for now we ignore them
+    // but keep the signature so callers can pass menu params.
+    let data = [];
     return data;
 }
 
-function getLayout() {
+function getLayout(params) {
+    // params may be used to customise layout depending on how app is opened
     let layout = [
         {
             type: 'table',
             caption: 'Организации (БД)',
             // dynamicTable true signals client to construct a DynamicTable bound to a server table
-            properties: { dynamicTable: true, appName: config.name, tableName: 'organizations', visibleRows: 10, editable: true, showToolbar: true, initialSort: [{ field: 'name', order: 'asc' }] }
+            properties: { dynamicTable: true, appName: config.name, tableName: params.tableName, visibleRows: 10, editable: true, showToolbar: true, initialSort: [{ field: 'name', order: 'asc' }] }
         }
     ];
 
     return layout;
 }
 
-function getLayoutWithData() {
+function getLayoutWithData(params) {
     // Return layout and data together for atomic loading
     try {
-        const layout = getLayout();
-        const data = getData();
+        const layout = getLayout(params);
+        const data = getData(params);
         // Store the returned payload in server memory and expose a datasetId
-        const payload = { layout: layout || [], data: data || [] };
+        const payload = { layout: layout || [], data: data || [], params: params || {} };
         const datasetId = dataApp.storeDataset(payload);
         return { layout: payload.layout, data: payload.data, datasetId };
     } catch (e) {
@@ -79,94 +82,97 @@ async function applyChanges(datasetId, changes) {
     }
 }
 
-
-// Export methods so framework's RPC (callServerMethod) can find them
-// Export methods so framework's RPC (callServerMethod) can find them
-// Core app methods are exported first; below we enhance exports with
-// dynamic table helpers so TextBox.listSource preloads work.
 const { registerDynamicTableMethods } = require('../../node_modules/my-old-space/drive_forms/dynamicTableRegistry');
 
-
-
 // Регистрация стандартных методов для работы с таблицами (копия конфигурации из apps/organizations)
-const dynamicTableMethods = registerDynamicTableMethods('recordEditor', {
-    // Маппинг таблиц на модели
-    tables: {
-        'organizations': 'Organizations',
-        'users': 'Users',
-        'accommodation_types': 'AccommodationTypes'
-    },
-    // Конфигурация полей для каждой таблицы (в точности как в organizations)
-    tableFields: {
-        'organizations': [
-            {
-                name: 'id',
-                caption: 'ID',
-                type: 'INTEGER',
-                inputType: 'number',
-                width: 80,
-                source: 'field', // берется из поля модели
-                editable: false  // ID не редактируется
-            },
-            {
-                name: 'name',
-                caption: 'Название организации',
-                type: 'STRING',
-                inputType: 'textbox',
-                width: 250,
+// Поддерживаем функцию-резолверы для `tables` и `tableFields`, чтобы они могли
+// возвращать разные конфигурации в зависимости от входных `params`.
+// Helper to build field definitions based on opening params
+function buildTableFields(params) {
+    const tableName = params && (params.tableName || params.dbTable || params.table);
+    if (!tableName) return null;
+    return buildTableFieldsFromModel(tableName);
+}
+
+// Build table fields from global model metadata (async helper)
+async function buildTableFieldsFromModel(tableName) {
+    try {
+        const globalCtx = require('../../node_modules/my-old-space/drive_root/globalServerContext');
+        const modelName = globalCtx.getModelNameForTable(tableName) || tableName;
+        if (!modelName) return null;
+        const meta = await globalCtx.getTableMetadata(modelName);
+        if (!Array.isArray(meta)) return null;
+
+        const fields = meta.map(f => {
+            const typeKey = f.type || '';
+            let inputType = 'textbox';
+            if (f.foreignKey) inputType = 'recordSelector';
+            else if (typeKey === 'INTEGER') inputType = (f.name === 'id') ? 'number' : 'number';
+            else if (typeKey === 'BOOLEAN') inputType = 'checkbox';
+            else if (typeKey === 'DATE' || typeKey === 'DATEONLY') inputType = 'date';
+
+            const field = {
+                name: f.name,
+                caption: f.caption || f.name,
+                type: typeKey,
+                inputType: inputType,
+                width: f.width || 100,
                 source: 'field',
-                editable: true
-            },
-            {
-                name: 'accommodationTypeId',
-                caption: 'Тип размещения',
-                type: 'INTEGER',
-                inputType: 'recordSelector',
-                width: 150,
-                source: 'field',
-                editable: false,  // FK пока не редактируем
-                // Provide selection metadata so the table cell renders like a record selector
-                properties: {
-                    selection: { table: 'accommodation_types', idField: 'id', displayField: 'name' },
+                editable: !!f.editable
+            };
+
+            if (f.foreignKey) {
+                field.properties = {
+                    selection: { table: f.foreignKey.table, idField: f.foreignKey.field || 'id', displayField: f.foreignKey.displayField || 'name' },
                     showSelectionButton: true,
-                    // Enable lightweight list preload for dropdown (optional)
                     listMode: true,
-                    listSource: {app: config.name, table: 'accommodation_types', idField: 'id', displayField: 'name', limit: 50 }
-                }
-            },
-            {
-                name: 'description',
-                caption: 'Описание',
-                type: 'STRING',
-                inputType: 'textbox',
-                width: 300,
-                source: 'field',
-                editable: true
-            },
-            {
-                name: 'isActive',
-                caption: 'Активна',
-                type: 'BOOLEAN',
-                inputType: 'checkbox',
-                width: 100,
-                source: 'field',
-                editable: true
-            },
-            // Пример вычисляемого поля:
-            {
-                name: 'fullInfo',
-                caption: 'Полная информация',
-                type: 'STRING',
-                inputType: 'textbox',
-                width: 200,
-                source: 'computed',
-                compute: (row) => `${row.name} (${row.isActive ? 'активна' : 'неактивна'})`
+                    listSource: { app: config.name, table: f.foreignKey.table, idField: f.foreignKey.field || 'id', displayField: f.foreignKey.displayField || 'name', limit: 50 }
+                };
             }
-        ]
+
+            return field;
+        });
+
+        return fields;
+    } catch (e) {
+        console.error('[uniListForm/buildTableFieldsFromModel] metadata build failed:', e && e.message || e);
+        return null;
+    }
+}
+// Helper to resolve model name (table -> model) based on params
+function buildTableModel(params) {
+    const tableName = params && (params.tableName || params.dbTable || params.table);
+    if (!tableName) return null;
+    if (tableName === 'organizations') { return 'Organizations'; }
+    if (tableName === 'users') { return 'Users'; }
+    if (tableName === 'accommodation_types') { return 'AccommodationTypes'; }
+    return null;
+}
+const dynamicTableMethods = registerDynamicTableMethods('recordEditor', {
+    // Маппинг таблиц на модели — может быть функцией или объектом
+    // Resolver signature: (params) => modelName
+    tables: (params) => {
+        const tableName = params && (params.tableName || params.dbTable || params.table);
+        const map = {
+            'organizations': 'Organizations',
+            'users': 'Users',
+            'accommodation_types': 'AccommodationTypes'
+        };
+        // Example: allow overriding via params (if params.sourceModel)
+        if (params && params.sourceModel && tableName && map[tableName]) {
+            return params.sourceModel;
+        }
+        return tableName ? map[tableName] : null;
     },
+
+    // Конфигурация полей для каждой таблицы (может быть функцией)
+    tableFields: (params) => {
+        // Delegate to builder so caller can later call separate assembler if needed
+        return buildTableFields(params);
+    },
+
     // Опциональная проверка доступа
     accessCheck: async (user, tableName, action) => {
-        // Разрешаем доступ всем авторизованным пользователям (включая гостей)
         return true;
     }
 });
@@ -179,6 +185,7 @@ module.exports = {
 
     // Dynamic table helpers used by UI controls (preload/dropdowns etc.)
     getDynamicTableData: dynamicTableMethods.getDynamicTableData,
+    getLookupList: dynamicTableMethods.getLookupList,
     subscribeToTable: dynamicTableMethods.subscribeToTable,
     saveClientState: dynamicTableMethods.saveClientState,
     recordTableEdit: dynamicTableMethods.recordTableEdit,
